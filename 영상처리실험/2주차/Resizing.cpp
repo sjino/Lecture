@@ -36,15 +36,18 @@ void main()
 	height_resized = (int)(height * sfac);
 	Mat result(height_resized, width_resized, CV_8UC3);
 	//printf("%d %d", width_resized, height_resized);
+	float gapi, gapj;
 	for (int i = 0; i < height_resized; i++)
 	{
 		for (int j = 0; j < width_resized; j++)
 		{
 			i_reverse = i * (1 / sfac);
 			j_reverse = j * (1 / sfac);
-			result.at<Vec3b>(i, j)[0] = resizing_pixel(imgColor.at<Vec3b>(i_reverse, j_reverse)[0], imgColor.at<Vec3b>(i_reverse, j_reverse + 1)[0], imgColor.at<Vec3b>(i_reverse + 1, j_reverse)[0], imgColor.at<Vec3b>(i_reverse + 1, j_reverse + 1)[0], j * (1 / sfac) - j_reverse, i * (1 / sfac) - i_reverse);
-			result.at<Vec3b>(i, j)[1] = resizing_pixel(imgColor.at<Vec3b>(i_reverse, j_reverse)[1], imgColor.at<Vec3b>(i_reverse, j_reverse + 1)[1], imgColor.at<Vec3b>(i_reverse + 1, j_reverse)[1], imgColor.at<Vec3b>(i_reverse + 1, j_reverse + 1)[1], j * (1 / sfac) - j_reverse, i * (1 / sfac) - i_reverse);
-			result.at<Vec3b>(i, j)[2] = resizing_pixel(imgColor.at<Vec3b>(i_reverse, j_reverse)[2], imgColor.at<Vec3b>(i_reverse, j_reverse + 1)[2], imgColor.at<Vec3b>(i_reverse + 1, j_reverse)[2], imgColor.at<Vec3b>(i_reverse + 1, j_reverse + 1)[2], j * (1 / sfac) - j_reverse, i * (1 / sfac) - i_reverse);
+			gapi = (float)i * (1 / sfac) - i_reverse;
+			gapj = (float)j * (1 / sfac) - j_reverse;
+			result.at<Vec3b>(i, j)[0] = resizing_pixel(imgColor.at<Vec3b>(i_reverse, j_reverse)[0], imgColor.at<Vec3b>(i_reverse, j_reverse + 1)[0], imgColor.at<Vec3b>(i_reverse + 1, j_reverse)[0], imgColor.at<Vec3b>(i_reverse + 1, j_reverse + 1)[0], gapj, gapi);
+			result.at<Vec3b>(i, j)[1] = resizing_pixel(imgColor.at<Vec3b>(i_reverse, j_reverse)[1], imgColor.at<Vec3b>(i_reverse, j_reverse + 1)[1], imgColor.at<Vec3b>(i_reverse + 1, j_reverse)[1], imgColor.at<Vec3b>(i_reverse + 1, j_reverse + 1)[1], gapj, gapi);
+			result.at<Vec3b>(i, j)[2] = resizing_pixel(imgColor.at<Vec3b>(i_reverse, j_reverse)[2], imgColor.at<Vec3b>(i_reverse, j_reverse + 1)[2], imgColor.at<Vec3b>(i_reverse + 1, j_reverse)[2], imgColor.at<Vec3b>(i_reverse + 1, j_reverse + 1)[2], gapj, gapi);
 		}
 	}
 
