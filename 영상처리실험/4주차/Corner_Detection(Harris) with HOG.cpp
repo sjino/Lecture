@@ -12,8 +12,8 @@
 #define rad2deg(X) (X*180/M_PI)
 #define k 0.04
 #define sigma 1
-#define thr_ratio 0.5//15퍼 이상을 threshold로 설정
-#define USE_GAUSSIAN 1 //가우시안 필터 사용하면 1 아니면 나머지
+#define thr_ratio 0.15//15퍼 이상을 threshold로 설정
+#define USE_GAUSSIAN 0 //가우시안 필터 사용하면 1 아니면 나머지
 
 struct Corner
 {
@@ -37,7 +37,201 @@ float Gaussian_filter[5][5];
 
 using namespace cv;
 using namespace std;
+void Harris_Corner(Mat img, bool** is_Corner)
+{
+	Mat imgGray;
+	if (img.type() == CV_8UC1)
+	{
+		img.copyTo(imgGray);
+	}
+	else
+	{
+		cvtColor(img, imgGray, COLOR_BGR2GRAY);
+	}
+	int height = img.rows, width = img.cols, conv_x, conv_y;
+	const int win_size = 5;
+	float** conv_mat_x = new float* [height];
+	float** conv_mat_y = new float* [height];
+	float** R_mat = new float* [height];
+	is_Corner = new bool* [height];
+	Mat imgGray_Gfilter(height, width, CV_8UC1);
+	for (int i = 0; i < height; i++)
+	{
+		conv_mat_x[i] = new float[width];
+		conv_mat_y[i] = new float[width];
+		R_mat[i] = new float[width];
+		is_Corner[i] = new bool[width];
+	}
 
+	vector<Corner> corner_ori;
+	float mag, deg;
+	int deg_index;
+
+	float max_ori = FLT_MIN, min_ori = FLT_MAX;
+	float thr_ori;
+	float conv_G;
+#if USE_GAUSSIAN == 1
+	for (int i = 0; i < 5; i++) //가우시안 필터 생성
+	{
+		for (int j = 0; j < 5; j++)
+		{
+			Gaussian_filter[i][j] = (float)(1 / (sqrtf(2 * M_PI) * sigma)) * exp(-((powf(i - 2, 2) + powf(j - 2, 2)) / (2 * sigma * sigma)));
+		}
+	}
+
+	for (int y = 0; y < height; y++) //가우시안 필터 적용
+	{
+		for (int x = 0; x < width; x++)
+		{
+			conv_G = 0;
+			for (int i = y - 2; i <= y + 2; i++)
+			{
+				for (int j = x - 2; j <= x + 2; j++)
+				{
+					if ((i >= 0 && i < height) && (j >= 0 && j < width))
+					{
+						conv_G += imgGray.at<uchar>(i, j) * Gaussian_filter[i - (y - 2)][j - (x - 2)];
+					}
+				}
+			}
+			imgGray_Gfilter.at<uchar>(y, x) = conv_G;
+		}
+	}
+	for (int i = 0; i < height; i++) //다시 복사
+	{
+		for (int j = 0; j < width; j++)
+		{
+			imgGray.at<uchar>(i, j) = imgGray_Gfilter.at<uchar>(i, j);
+		}
+	}
+#endif
+
+	for (int y = 0; y < height; y++) //Ix Iy 계산(필터로 구현)
+	{
+		for (int x = 0; x < width; x++)
+		{
+			conv_x = 0;
+			conv_y = 0;
+			for (int i = y - 1; i <= y + 1; i++)
+			{
+				for (int j = x - 1; j <= x + 1; j++)
+				{
+					if ((i >= 0 && i < height) && (j >= 0 && j < width))
+					{
+						conv_x += imgGray.at<uchar>(i, j) * filter_x[i - (y - 1)][j - (x - 1)];
+						conv_y += imgGray.at<uchar>(i, j) * filter_y[i - (y - 1)][j - (x - 1)];
+
+					}
+
+				}
+			}
+			conv_mat_x[y][x] = conv_x;
+			conv_mat_y[y][x] = conv_y;
+		}
+	}
+
+
+	///0~255 정규화 진행 X 
+
+
+	float M_ori[2][2];
+	for (int y = 0; y < height; y++) //R계산 R=det(M)-K*tr^2(M)
+	{
+		for (int x = 0; x < width; x++)
+		{
+			for (int i = 0; i < 2; i++)
+			{
+				for (int j = 0; j < 2; j++)
+				{
+					M_ori[i][j] = 0;
+				}
+			}
+			for (int i = y - win_size / 2; i <= y + win_size / 2; i++) //윈도우(5) 계산
+			{
+				for (int j = x - win_size / 2; j <= x + win_size / 2; j++)
+				{
+					if ((i >= 0 && i < height) && (j >= 0 && j < width))
+					{
+						M_ori[0][0] += conv_mat_x[i][j] * conv_mat_x[i][j];
+						M_ori[0][1] += conv_mat_x[i][j] * conv_mat_y[i][j];
+						M_ori[1][0] += conv_mat_x[i][j] * conv_mat_y[i][j];
+						M_ori[1][1] += conv_mat_y[i][j] * conv_mat_y[i][j];
+						
+					}
+				}
+			}
+			R_mat[y][x] = /*det*/(M_ori[0][0] * M_ori[1][1] - M_ori[0][1] * M_ori[1][0]) - k * powf(/*trace*/(M_ori[0][0] + M_ori[1][1]), 2);
+			max_ori = (((R_mat[y][x]) > (max_ori)) ? (R_mat[y][x]) : (max_ori));
+			min_ori = (((R_mat[y][x]) < (min_ori)) ? (R_mat[y][x]) : (min_ori));
+
+		}
+	}
+	thr_ori = min_ori + (float)((max_ori - min_ori) * thr_ratio);
+	for (int y = 0; y < height; y++)
+	{
+		for (int x = 0; x < width; x++)
+		{
+			is_Corner[y][x] = false;
+		}
+	}
+	for (int y = 0; y < height; y++)//Corner 분류
+	{
+		for (int x = 0; x < width; x++)
+		{
+			if (R_mat[y][x] >= thr_ori)
+			{
+				is_Corner[y][x] = true;
+			}
+		}
+	}
+
+	int i_max = 0, j_max = 0, i_max_cmp1 = 0, j_max_cmp1 = 0;
+	bool ischanged = false, ischanged_cmp1 = false;
+	for (int y = 0; y < height; y++)//Non-maxima suppression
+	{
+		for (int x = 0; x < width; x++)
+		{
+			max_ori = FLT_MIN;
+			for (int i = y - win_size / 2; i <= y + win_size / 2; i++) //윈도우(5) 계산
+			{
+				for (int j = x - win_size / 2; j <= x + win_size / 2; j++)
+				{
+					if ((i >= 0 && i < height) && (j >= 0 && j < width))
+					{
+						if (is_Corner[i][j] == true)
+						{
+							ischanged = true;
+							is_Corner[i][j] = false;
+							if ((R_mat[i][j]) > (max_ori))
+							{
+								max_ori = R_mat[i][j];
+								i_max = i;
+								j_max = j;
+							}
+						}
+						
+					}
+				}
+			}
+			if (ischanged == true)
+			{
+				is_Corner[i_max][j_max] = true;
+				ischanged = false;
+			}
+			
+		}
+	}
+	for (int i = 0; i < height; i++)
+	{
+		delete[] conv_mat_x[i];
+		delete[] conv_mat_y[i];
+		delete[] R_mat[i];
+	}
+	delete[] conv_mat_x;
+	delete[] conv_mat_y;
+	delete[] R_mat;
+
+}
 void main()
 {
 	int height, width, conv_x, conv_y, conv_x_cmp1, conv_y_cmp1;
@@ -111,7 +305,7 @@ void main()
 			imgGray_Gfilter.at<uchar>(y, x) = conv_G;
 			compimg1Gray_Gfilter.at<uchar>(y, x) = conv_G_cmp1;
 		}
-	}
+}
 	for (int i = 0; i < height; i++) //다시 복사
 	{
 		for (int j = 0; j < width; j++)

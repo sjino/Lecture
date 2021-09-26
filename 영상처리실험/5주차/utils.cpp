@@ -87,8 +87,8 @@ void draw_keypoints(cv::Mat& img, const std::vector<cv::KeyPoint>& kpts) {
     x = (int)(kpts[i].pt.x+.5);
     y = (int)(kpts[i].pt.y+.5);
     radius = kpts[i].size/2.0;
-    cv::circle(img, cv::Point(x,y), radius*2.50, cv::Scalar(0,255,0), 1);
-    cv::circle(img, cv::Point(x,y), 1.0, cv::Scalar(0,0,255), -1);
+    //cv::circle(img, cv::Point(x,y), radius*2.50, cv::Scalar(0,255,0), 1);
+    cv::circle(img, cv::Point(x,y), 3, cv::Scalar(0,0,255), -1);
   }
 }
 
